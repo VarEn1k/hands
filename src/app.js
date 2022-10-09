@@ -5,6 +5,8 @@ import {DRACOLoader} from "three/examples/jsm/loaders/DRACOLoader"
 
 import blimp from "../assets/Blimp.glb"
 import chair from "../assets/medieval-chair.glb"
+import {XRControllerModelFactory} from "three/examples/jsm/webxr/XRControllerModelFactory";
+import fork from "../assets/Fork.glb"
 
 class App {
   constructor() {
@@ -53,7 +55,7 @@ class App {
 
     sphere.position.set(1.5, 0, 0)
 
-    this.loadAsset(blimp, -.5, .5, 1, scene => {
+   /* this.loadAsset(blimp, -.5, .5, 1, scene => {
       const scale = 5
       scene.scale.set(scale, scale, scale)
       self.blimp = scene
@@ -61,6 +63,11 @@ class App {
 
     this.loadAsset(chair, .5, .5, 1, scene => {
       const scale = 1
+      scene.scale.set(scale, scale, scale)
+      self.chair = scene
+    })*/
+    this.loadAsset(fork, 0, 0.8, -2, scene => {
+      const scale = 0.2
       scene.scale.set(scale, scale, scale)
       self.chair = scene
     })
@@ -91,6 +98,16 @@ class App {
   setupVR() {
     this.renderer.xr.enabled = true
     document.body.appendChild(VRButton.createButton(this.renderer))
+    const grip = this.renderer.xr.getControllerGrip(0)
+    grip.add(new XRControllerModelFactory().createControllerModel(grip))
+    this.scene.add(grip)
+
+    const hand = this.renderer.xr.getHand(0)
+    hand.add(new XRControllerModelFactory().createControllerModel(hand))
+    this.scene.add(hand)
+    const hand2 = this.renderer.xr.getHand(1)
+    hand2.add(new XRControllerModelFactory().createControllerModel(hand2))
+    this.scene.add(hand2)
   }
 
   resize() {
