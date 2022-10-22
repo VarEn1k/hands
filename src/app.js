@@ -5,6 +5,7 @@ import {DRACOLoader} from "three/examples/jsm/loaders/DRACOLoader"
 
 import blimp from "../assets/Blimp.glb"
 import chair from "../assets/medieval-chair.glb"
+import {XRHandModelFactory} from "three/examples/jsm/webxr/XRHandModelFactory";
 import {XRControllerModelFactory} from "three/examples/jsm/webxr/XRControllerModelFactory";
 import fork from "../assets/Fork.glb"
 
@@ -69,7 +70,7 @@ class App {
     this.loadAsset(fork, 0, 0.8, -2, scene => {
       const scale = 0.2
       scene.scale.set(scale, scale, scale)
-      self.chair = scene
+      self.fork = scene
     })
 
   }
@@ -95,20 +96,41 @@ class App {
     )
   }
 
+  changeAngle(handedness) {
+    if (this.fork) {
+      this.fork.rotateY(45)
+    }
+  }
+
+
   setupVR() {
     this.renderer.xr.enabled = true
     document.body.appendChild(VRButton.createButton(this.renderer))
-    const grip = this.renderer.xr.getControllerGrip(0)
+   /* const grip = this.renderer.xr.getControllerGrip(0)
     grip.add(new XRControllerModelFactory().createControllerModel(grip))
     this.scene.add(grip)
+    const grip2 = this.renderer.xr.getControllerGrip(1)
+    grip2.add(new XRControllerModelFactory().createControllerModel(grip2))
+    this.scene.add(grip2)
+*/
 
-    const hand = this.renderer.xr.getHand(0)
-    hand.add(new XRControllerModelFactory().createControllerModel(hand))
-    this.scene.add(hand)
+    const hand1 = this.renderer.xr.getHand(0)
+    hand1.add (new XRHandModelFactory().createHandModel(hand1, "mesh"))
+    this.scene.add(hand1)
     const hand2 = this.renderer.xr.getHand(1)
-    hand2.add(new XRControllerModelFactory().createControllerModel(hand2))
+    hand2.add (new XRHandModelFactory().createHandModel(hand2, "mesh"))
     this.scene.add(hand2)
+
+
+    const self = this
+
+    hand1.addEventListener( 'pinchend', evt => {
+      self.changeAngle.bind(self, evt.handedness ).call();
+    } );
+
+
   }
+
 
   resize() {
     this.camera.aspect = window.innerWidth / window.innerHeight
@@ -122,10 +144,11 @@ class App {
       this.mesh.rotateY(0.01)
     }
 
-    if (this.blimp) {
-      this.blimp.rotateY(0.1 * xAxis)
-      this.blimp.translateY(.02 * yAxis)
+    if (this.fork) {
+      this.fork.rotateY(0.1 * xAxis)
+      this.fork.translateY(.02 * yAxis)
     }
+
     this.renderer.render(this.scene, this.camera)
   }
 }
