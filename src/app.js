@@ -10,6 +10,7 @@ import {XRControllerModelFactory} from "three/examples/jsm/webxr/XRControllerMod
 import fork from "../assets/Fork.glb"
 
 class App {
+  fork;
   constructor() {
     const container = document.createElement('div')
     document.body.appendChild(container)
@@ -67,6 +68,7 @@ class App {
       scene.scale.set(scale, scale, scale)
       self.chair = scene
     })*/
+    const self = this
     this.loadAsset(fork, 0, 0.8, -2, scene => {
       const scale = 0.2
       scene.scale.set(scale, scale, scale)
@@ -99,6 +101,13 @@ class App {
   changeAngle(handedness) {
     if (this.fork) {
       this.fork.rotateY(45)
+
+    }
+  }
+  changeAngle2(handedness) {
+    if (this.fork) {
+      this.fork.rotateX(45)
+
     }
   }
 
@@ -117,15 +126,26 @@ class App {
     const hand1 = this.renderer.xr.getHand(0)
     hand1.add (new XRHandModelFactory().createHandModel(hand1, "mesh"))
     this.scene.add(hand1)
+    hand1.addEventListener('selectstart',  evt => {
+      self.changeAngle.bind(self, evt.handedness ).call();
+    } )
+
     const hand2 = this.renderer.xr.getHand(1)
     hand2.add (new XRHandModelFactory().createHandModel(hand2, "mesh"))
     this.scene.add(hand2)
+    hand2.addEventListener('selectstart',  evt => {
+      self.changeAngle2.bind(self, evt.handedness ).call();
+    } )
 
 
     const self = this
 
     hand1.addEventListener( 'pinchend', evt => {
       self.changeAngle.bind(self, evt.handedness ).call();
+    } );
+
+    hand2.addEventListener( 'pinchend', evt => {
+      self.changeAngle2.bind(self, evt.handedness ).call();
     } );
 
 
@@ -144,10 +164,10 @@ class App {
       this.mesh.rotateY(0.01)
     }
 
-    if (this.fork) {
+    /*if (this.fork) {
       this.fork.rotateY(0.1 * xAxis)
       this.fork.translateY(.02 * yAxis)
-    }
+    }*/
 
     this.renderer.render(this.scene, this.camera)
   }
