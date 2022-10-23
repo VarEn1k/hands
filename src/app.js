@@ -8,7 +8,7 @@ import chair from "../assets/medieval-chair.glb"
 import {XRHandModelFactory} from "three/examples/jsm/webxr/XRHandModelFactory";
 import {XRControllerModelFactory} from "three/examples/jsm/webxr/XRControllerModelFactory";
 import fork from "../assets/Fork.glb"
-
+import monster from "../assets/monster.glb"
 class App {
   fork;
   constructor() {
@@ -74,6 +74,11 @@ class App {
       scene.scale.set(scale, scale, scale)
       self.fork = scene
     })
+    this.loadAsset(monster, 0.8, 0.8, -1, scene => {
+      const scale = 0.5
+      scene.scale.set(scale, scale, scale)
+      self.monster = scene
+    })
 
   }
 
@@ -104,9 +109,11 @@ class App {
 
     }
   }
-  changeAngle2(handedness) {
-    if (this.fork) {
-      this.fork.rotateX(45)
+
+  changePosition(handedness) {
+    if (this.monster) {
+      const pos = this.monster.position
+      this.monster.position.set(pos.x - .5, pos.y, pos.z)
 
     }
   }
@@ -134,7 +141,7 @@ class App {
     hand2.add (new XRHandModelFactory().createHandModel(hand2, "mesh"))
     this.scene.add(hand2)
     hand2.addEventListener('selectstart',  evt => {
-      self.changeAngle2.bind(self, evt.handedness ).call();
+      self.changePosition.bind(self, evt.handedness ).call();
     } )
 
 
@@ -145,7 +152,7 @@ class App {
     } );
 
     hand2.addEventListener( 'pinchend', evt => {
-      self.changeAngle2.bind(self, evt.handedness ).call();
+      self.changePosition.bind(self, evt.handedness ).call();
     } );
 
 
