@@ -9,8 +9,25 @@ import {XRHandModelFactory} from "three/examples/jsm/webxr/XRHandModelFactory";
 import {XRControllerModelFactory} from "three/examples/jsm/webxr/XRControllerModelFactory";
 import fork from "../assets/Fork.glb"
 import monster from "../assets/monster.glb"
-class App {
-  fork;
+
+
+
+ class App {
+   tmpVector1 = new THREE.Vector3()
+   tmpVector2 = new THREE.Vector3()
+   fork;
+   grabbing = false;
+   scaling = {
+     active: false,
+     initialDistance: 0,
+     object: null,
+     initialScale: 1
+   };
+   spheres = []
+   hand1
+   hand2
+   SphereRadius = 0.05
+
   constructor() {
     const container = document.createElement('div')
     document.body.appendChild(container)
@@ -41,10 +58,14 @@ class App {
 
     this.renderer.setAnimationLoop(this.render.bind(this))
     window.addEventListener('resize', this.resize.bind(this))
+
+
   }
 
 
   initScene() {
+    const self = this
+
     const geometry = new THREE.BoxBufferGeometry(.5, .5, .5)
     const material = new THREE.MeshStandardMaterial({color: 0xFF0000})
     this.mesh = new THREE.Mesh(geometry, material)
@@ -68,12 +89,14 @@ class App {
       scene.scale.set(scale, scale, scale)
       self.chair = scene
     })*/
-    const self = this
+
+
     this.loadAsset(fork, 0, 0.8, -2, scene => {
       const scale = 0.2
       scene.scale.set(scale, scale, scale)
       self.fork = scene
     })
+
     this.loadAsset(monster, 0.8, 0.8, -1, scene => {
       const scale = 0.5
       scene.scale.set(scale, scale, scale)
@@ -101,9 +124,10 @@ class App {
         null,
         (error) => console.error(`An error happened: ${error}`)
     )
+
   }
 
-  changeAngle(handedness) {
+  /*changeAngle(handedness) {
     if (this.fork) {
       this.fork.rotateY(45)
 
@@ -116,7 +140,10 @@ class App {
       this.monster.position.set(pos.x - .5, pos.y, pos.z)
 
     }
-  }
+  }*/
+
+
+
 
 
   setupVR() {
@@ -133,31 +160,134 @@ class App {
     const hand1 = this.renderer.xr.getHand(0)
     hand1.add (new XRHandModelFactory().createHandModel(hand1, "mesh"))
     this.scene.add(hand1)
-    hand1.addEventListener('selectstart',  evt => {
-      self.changeAngle.bind(self, evt.handedness ).call();
-    } )
+    // hand1.addEventListener('selectstart',  evt => {
+    //   self.changeAngle.bind(self, evt.handedness ).call();
+    // } )
 
     const hand2 = this.renderer.xr.getHand(1)
     hand2.add (new XRHandModelFactory().createHandModel(hand2, "mesh"))
     this.scene.add(hand2)
-    hand2.addEventListener('selectstart',  evt => {
-      self.changePosition.bind(self, evt.handedness ).call();
-    } )
+
+    this.hand1 = hand1
+    this.hand2 = hand2
 
 
     const self = this
 
-    hand1.addEventListener( 'pinchend', evt => {
-      self.changeAngle.bind(self, evt.handedness ).call();
+    hand1.addEventListener( 'pinchstart', event => {
+      self.onPinchStartLeft.bind(self, event).call()
+    } );
+    hand1.addEventListener( 'pinchend', () => {
+      self.scaling.active = false;
     } );
 
-    hand2.addEventListener( 'pinchend', evt => {
-      self.changePosition.bind(self, evt.handedness ).call();
+    hand2.addEventListener( 'pinchstart', (event) => {
+      self.onPinchStartRight.bind(self, event).call()
     } );
-
-
+    hand2.addEventListener( 'pinchend',  (event) => {
+      self.onPinchEndRight.bind(self, event).call()
+    } )
   }
 
+   onPinchStartLeft( event ) {
+
+     const controller = event.target;
+
+     if ( this.grabbing ) {
+
+       const indexTip = controller.joints[ 'index-finger-tip' ];
+       const sphere = this.collideObject( indexTip );
+
+       if ( sphere ) {
+
+         const sphere2 = this.hand2.userData.selected;
+         console.log( 'sphere1', sphere, 'sphere2', sphere2 );
+         if ( sphere === sphere2 ) {
+
+           this.scaling.active = true;
+           this.scaling.object = sphere;
+           this.scaling.initialScale = sphere.scale.x;
+           this.scaling.initialDistance = indexTip.position.distanceTo( this.hand2.joints[ 'index-finger-tip' ].position );
+           return;
+
+         }
+
+       }
+
+     }
+
+     const geometry = new THREE.BoxGeometry( this.SphereRadius, this.SphereRadius, this.SphereRadius );
+     const material = new THREE.MeshStandardMaterial( {
+       color: Math.random() * 0xffffff,
+       roughness: 1.0,
+       metalness: 0.0
+     } );
+     const spawn = new THREE.Mesh( geometry, material );
+     spawn.geometry.computeBoundingSphere();
+
+     const indexTip = controller.joints[ 'index-finger-tip' ];
+     spawn.position.copy( indexTip.position );
+     spawn.quaternion.copy( indexTip.quaternion );
+
+     this.spheres.push( spawn );
+
+     this.scene.add( spawn );
+
+   }
+
+   onPinchStartRight( event ) {
+
+     const controller = event.target;
+     const indexTip = controller.joints[ 'index-finger-tip' ];
+     const object = this.collideObject( indexTip );
+     if ( object ) {
+
+       this.grabbing = true;
+       indexTip.attach( object );
+       controller.userData.selected = object;
+       console.log( 'Selected', object );
+
+     }
+
+   }
+
+   onPinchEndRight( event ) {
+
+     const controller = event.target;
+
+     if ( controller.userData.selected !== undefined ) {
+
+       const object = controller.userData.selected;
+       object.material.emissive.b = 0;
+       this.scene.attach( object );
+
+       controller.userData.selected = undefined;
+       this.grabbing = false;
+
+     }
+
+     this.scaling.active = false;
+
+   }
+
+   collideObject( indexTip ) {
+
+     for ( let i = 0; i < this.spheres.length; i ++ ) {
+
+       const sphere = this.spheres[ i ];
+       const distance = indexTip.getWorldPosition( this.tmpVector1 ).distanceTo( sphere.getWorldPosition( this.tmpVector2 ) );
+
+       if ( distance < sphere.geometry.boundingSphere.radius * sphere.scale.x ) {
+
+         return sphere;
+
+       }
+
+     }
+
+     return null;
+
+   }
 
   resize() {
     this.camera.aspect = window.innerWidth / window.innerHeight
@@ -166,9 +296,15 @@ class App {
   }
 
   render() {
-    if (this.mesh) {
-      this.mesh.rotateX(0.005)
-      this.mesh.rotateY(0.01)
+
+    if ( this.scaling.active ) {
+
+      const indexTip1Pos = this.hand1.joints[ 'index-finger-tip' ].position;
+      const indexTip2Pos = this.hand2.joints[ 'index-finger-tip' ].position;
+      const distance = indexTip1Pos.distanceTo( indexTip2Pos );
+      const newScale = this.scaling.initialScale + distance / this.scaling.initialDistance - 1;
+      this.scaling.object.scale.setScalar( newScale );
+
     }
 
     /*if (this.fork) {
