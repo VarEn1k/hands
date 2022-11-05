@@ -9,24 +9,220 @@ import {XRHandModelFactory} from "three/examples/jsm/webxr/XRHandModelFactory";
 import {XRControllerModelFactory} from "three/examples/jsm/webxr/XRControllerModelFactory";
 import fork from "../assets/Fork.glb"
 import monster from "../assets/monster.glb"
+import { World, System, Component, TagComponent, Types } from 'three/addons/libs/ecsy.module.js';
+
+class Object3D extends Component { }
+
+Object3D.schema = {
+  object: { type: Types.Ref }
+};
+
+class Button extends Component { }
+
+Button.schema = {
+  // button states: [resting, pressed, fully_pressed, recovering]
+  currState: { type: Types.String, default: 'resting' },
+  prevState: { type: Types.String, default: 'resting' },
+  pressSound: { type: Types.Ref, default: null },
+  releaseSound: { type: Types.Ref, default: null },
+  restingY: { type: Types.Number, default: null },
+  surfaceY: { type: Types.Number, default: null },
+  recoverySpeed: { type: Types.Number, default: 0.4 },
+  fullPressDistance: { type: Types.Number, default: null },
+  action: { type: Types.Ref, default: () => { } }
+};
+
+class ButtonSystem extends System {
+
+  init( attributes ) {
+
+    this.renderer = attributes.renderer;
+
+  }
+
+}
+
+ButtonSystem.queries = {
+  buttons: {
+    components: [ Button ]
+  }
+};
+
+class Pressable extends TagComponent { }
+
+class FingerInputSystem extends System {
+
+  init( attributes ) {
+
+    this.hands = attributes.hands;
+
+  }
+
+  execute( delta/*, time*/ ) {
+
+    this.queries.pressable.results.forEach( entity => {
+
+      const button = entity.getMutableComponent( Button );
+      const object = entity.getComponent( Object3D ).object;
+      const pressingDistances = [];
+      this.hands.forEach( hand => {
+
+        if ( hand && hand.intersectBoxObject( object ) ) {
+
+          const pressingPosition = hand.getPointerPosition();
+          pressingDistances.push( button.surfaceY - object.worldToLocal( pressingPosition ).y );
+
+        }
+
+      } );
+      if ( pressingDistances.length == 0 ) { // not pressed this frame
+
+        if ( object.position.y < button.restingY ) {
+
+          object.position.y += button.recoverySpeed * delta;
+          button.currState = 'recovering';
+
+        } else {
+
+          object.position.y = button.restingY;
+          button.currState = 'resting';
+
+        }
+
+      } else {
+
+        button.currState = 'pressed';
+        const pressingDistance = Math.max( pressingDistances );
+        if ( pressingDistance > 0 ) {
+
+          object.position.y -= pressingDistance;
+
+        }
+
+        if ( object.position.y <= button.restingY - button.fullPressDistance ) {
+
+          button.currState = 'fully_pressed';
+          object.position.y = button.restingY - button.fullPressDistance;
+
+        }
+
+      }
+
+    } );
+
+  }
+
+}
+
+FingerInputSystem.queries = {
+  pressable: {
+    components: [ Pressable ]
+  }
+};
+
+class HandsInstructionText extends TagComponent { }
+
+class InstructionSystem extends System {
+
+  init( attributes ) {
+
+    this.controllers = attributes.controllers;
+
+  }
+
+  execute( /*delta, time*/ ) {
+
+    let visible = false;
+    this.controllers.forEach( controller => {
+
+      if ( controller.visible ) {
+
+        visible = true;
+
+      }
+
+    } );
+
+    this.queries.instructionTexts.results.forEach( entity => {
+
+      const object = entity.getComponent( Object3D ).object;
+      object.visible = visible;
+
+    } );
+
+  }
+
+}
+
+InstructionSystem.queries = {
+  instructionTexts: {
+    components: [ HandsInstructionText ]
+  }
+};
+
+class NeedCalibration extends TagComponent { }
+
+class CalibrationSystem extends System {
+
+  init( attributes ) {
+
+    this.camera = attributes.camera;
+    this.renderer = attributes.renderer;
+
+  }
+
+  execute( /*delta, time*/ ) {
+
+    this.queries.needCalibration.results.forEach( entity => {
+
+      if ( this.renderer.xr.getSession() ) {
+
+        const offset = entity.getComponent( OffsetFromCamera );
+        const object = entity.getComponent( Object3D ).object;
+        const xrCamera = this.renderer.xr.getCamera();
+        object.position.x = xrCamera.position.x + offset.x;
+        object.position.y = xrCamera.position.y + offset.y;
+        object.position.z = xrCamera.position.z + offset.z;
+        entity.removeComponent( NeedCalibration );
+
+      }
+
+    } );
+
+  }
+
+}
+
+CalibrationSystem.queries = {
+  needCalibration: {
+    components: [ NeedCalibration ]
+  }
+};
 
 
 
- class App {
-   tmpVector1 = new THREE.Vector3()
-   tmpVector2 = new THREE.Vector3()
-   fork;
-   grabbing = false;
-   scaling = {
-     active: false,
-     initialDistance: 0,
-     object: null,
-     initialScale: 1
-   };
-   spheres = []
-   hand1
-   hand2
-   SphereRadius = 0.05
+
+
+
+class App {
+  spheres = [];
+  tmpVector1 = new THREE.Vector3();
+  tmpVector2 = new THREE.Vector3();
+
+  grabbing = false;
+  scaling = {
+    active: false,
+    initialDistance: 0,
+    object: null,
+    initialScale: 1
+  };
+  world = new World();
+  clock = new THREE.Clock();
+  camera
+  scene
+  renderer;
+
+  SphereRadius = 0.05;
 
   constructor() {
     const container = document.createElement('div')
@@ -58,12 +254,11 @@ import monster from "../assets/monster.glb"
 
     this.renderer.setAnimationLoop(this.render.bind(this))
     window.addEventListener('resize', this.resize.bind(this))
-
-
   }
 
 
   initScene() {
+
     const self = this
 
     const geometry = new THREE.BoxBufferGeometry(.5, .5, .5)
@@ -78,29 +273,23 @@ import monster from "../assets/monster.glb"
 
     sphere.position.set(1.5, 0, 0)
 
-   /* this.loadAsset(blimp, -.5, .5, 1, scene => {
+
+    this.loadAsset(blimp, 5, .5, -5, scene => {
       const scale = 5
       scene.scale.set(scale, scale, scale)
       self.blimp = scene
     })
+    //
+    // this.loadAsset(chair, .5, .5, 1, scene => {
+    //   const scale = 1
+    //   scene.scale.set(scale, scale, scale)
+    //   self.chair = scene
+    // })
 
-    this.loadAsset(chair, .5, .5, 1, scene => {
-      const scale = 1
-      scene.scale.set(scale, scale, scale)
-      self.chair = scene
-    })*/
-
-
-    this.loadAsset(fork, 0, 0.8, -2, scene => {
+    this.loadAsset(fork, 0, .5, -5, scene => {
       const scale = 0.2
       scene.scale.set(scale, scale, scale)
       self.fork = scene
-    })
-
-    this.loadAsset(monster, 0.8, 0.8, -1, scene => {
-      const scale = 0.5
-      scene.scale.set(scale, scale, scale)
-      self.monster = scene
     })
 
   }
@@ -124,57 +313,168 @@ import monster from "../assets/monster.glb"
         null,
         (error) => console.error(`An error happened: ${error}`)
     )
-
   }
 
-  /*changeAngle(handedness) {
-    if (this.fork) {
-      this.fork.rotateY(45)
+  makeButtonMesh(x, y, z, color) {
 
-    }
+    const geometry = new THREE.BoxGeometry(x, y, z);
+    const material = new THREE.MeshPhongMaterial({color: color});
+    const buttonMesh = new THREE.Mesh(geometry, material);
+    buttonMesh.castShadow = true;
+    buttonMesh.receiveShadow = true;
+    return buttonMesh;
+
   }
-
-  changePosition(handedness) {
-    if (this.monster) {
-      const pos = this.monster.position
-      this.monster.position.set(pos.x - .5, pos.y, pos.z)
-
-    }
-  }*/
-
-
-
-
 
   setupVR() {
+    const hand1 = renderer.xr.getHand( 0 );
+    const handModel1 = new OculusHandModel( hand1 );
+    hand1.add( handModel1 );
+    scene.add( hand1 );
+
+    const hand2 = renderer.xr.getHand( 1 );
+    const handModel2 = new OculusHandModel( hand2 );
+    hand2.add( handModel2 );
+    scene.add( hand2 );
+
     this.renderer.xr.enabled = true
     document.body.appendChild(VRButton.createButton(this.renderer))
-   /* const grip = this.renderer.xr.getControllerGrip(0)
-    grip.add(new XRControllerModelFactory().createControllerModel(grip))
-    this.scene.add(grip)
-    const grip2 = this.renderer.xr.getControllerGrip(1)
-    grip2.add(new XRControllerModelFactory().createControllerModel(grip2))
-    this.scene.add(grip2)
-*/
+    /* const grip = this.renderer.xr.getControllerGrip(0)
+     grip.add(new XRControllerModelFactory().createControllerModel(grip))
+     this.scene.add(grip)
+     const grip2 = this.renderer.xr.getControllerGrip(1)
+     grip2.add(new XRControllerModelFactory().createControllerModel(grip2))
+     this.scene.add(grip2)
+ */
 
-    const hand1 = this.renderer.xr.getHand(0)
-    hand1.add (new XRHandModelFactory().createHandModel(hand1, "mesh"))
-    this.scene.add(hand1)
-    // hand1.addEventListener('selectstart',  evt => {
-    //   self.changeAngle.bind(self, evt.handedness ).call();
-    // } )
+    const consoleGeometry = new THREE.BoxGeometry(0.5, 0.12, 0.15);
+    const consoleMaterial = new THREE.MeshPhongMaterial({color: 0x595959});
+    const consoleMesh = new THREE.Mesh(consoleGeometry, consoleMaterial);
+    consoleMesh.position.set(0, 1, -0.3);
+    consoleMesh.castShadow = true;
+    consoleMesh.receiveShadow = true;
+    this.scene.add(consoleMesh);
 
-    const hand2 = this.renderer.xr.getHand(1)
-    hand2.add (new XRHandModelFactory().createHandModel(hand2, "mesh"))
-    this.scene.add(hand2)
+    const pinkButton = this.makeButtonMesh(0.08, 0.1, 0.08, 0xe84a5f);
+    pinkButton.position.set(-0.05, 0.04, 0);
+    consoleMesh.add(pinkButton);
 
-    this.hand1 = hand1
-    this.hand2 = hand2
+    const resetButton = this.makeButtonMesh(0.08, 0.1, 0.08, 0x355c7d);
+    const resetButtonText = createText('reset', 0.03);
+    resetButton.add(resetButtonText);
+    resetButtonText.rotation.x = -Math.PI / 2;
+    resetButtonText.position.set(0, 0.051, 0);
+    resetButton.position.set(0.05, 0.04, 0);
+    consoleMesh.add(resetButton);
+
+    const exitButton = this.makeButtonMesh(0.08, 0.1, 0.08, 0xff0000);
+    const exitButtonText = createText('exit', 0.03);
+    exitButton.add(exitButtonText);
+    exitButtonText.rotation.x = -Math.PI / 2;
+    exitButtonText.position.set(0, 0.051, 0);
+    exitButton.position.set(0.15, 0.04, 0);
+    consoleMesh.add(exitButton);
+
+    const tkGeometry = new THREE.TorusKnotGeometry(0.5, 0.2, 200, 32);
+    const tkMaterial = new THREE.MeshPhongMaterial({color: 0xffffff});
+    tkMaterial.metalness = 0.8;
+    const torusKnot = new THREE.Mesh(tkGeometry, tkMaterial);
+    torusKnot.position.set(0, 1, -5);
+    scene.add(torusKnot);
+
+    world
+        .registerComponent(Object3D)
+        .registerComponent(Button)
+        .registerComponent(Pressable)
+        .registerComponent(Rotating)
+        .registerComponent(HandsInstructionText)
+        .registerComponent(OffsetFromCamera)
+        .registerComponent(NeedCalibration);
+
+    world
+        .registerSystem(RotatingSystem)
+        .registerSystem(InstructionSystem, {controllers: [controllerGrip1, controllerGrip2]})
+        .registerSystem(CalibrationSystem, {renderer: renderer, camera: camera})
+        .registerSystem(ButtonSystem, {renderer: renderer, camera: camera})
+        .registerSystem(FingerInputSystem, {hands: [handModel1, handModel2]});
+
+    const csEntity = world.createEntity();
+    csEntity.addComponent(OffsetFromCamera, {x: 0, y: -0.4, z: -0.3});
+    csEntity.addComponent(NeedCalibration);
+    csEntity.addComponent(Object3D, {object: consoleMesh});
+
+    const obEntity = world.createEntity();
+    obEntity.addComponent(Pressable);
+    obEntity.addComponent(Object3D, {object: orangeButton});
+    const obAction = function () {
+
+      torusKnot.material.color.setHex(0xffd3b5);
+
+    };
+
+    obEntity.addComponent(Button, {action: obAction, surfaceY: 0.05, fullPressDistance: 0.02});
+
+    const pbEntity = world.createEntity();
+    pbEntity.addComponent(Pressable);
+    pbEntity.addComponent(Object3D, {object: pinkButton});
+    const pbAction = function () {
+
+      torusKnot.material.color.setHex(0xe84a5f);
+
+    };
+
+    pbEntity.addComponent(Button, {action: pbAction, surfaceY: 0.05, fullPressDistance: 0.02});
+
+    const rbEntity = world.createEntity();
+    rbEntity.addComponent(Pressable);
+    rbEntity.addComponent(Object3D, {object: resetButton});
+    const rbAction = function () {
+
+      torusKnot.material.color.setHex(0xffffff);
+
+    };
+
+    rbEntity.addComponent(Button, {action: rbAction, surfaceY: 0.05, fullPressDistance: 0.02});
+
+    const ebEntity = this.world.createEntity();
+    ebEntity.addComponent(Pressable);
+    ebEntity.addComponent(Object3D, {object: exitButton});
+    const ebAction = function () {
+
+      this.exitText.visible = true;
+      setTimeout(function () {
+
+        this.exitText.visible = false;
+        renderer.xr.getSession().end();
+
+      }, 2000);
+
+    };
+
+    ebEntity.addComponent(Button, {action: ebAction, surfaceY: 0.05, recoverySpeed: 0.2, fullPressDistance: 0.03});
+
+    const tkEntity = world.createEntity();
+    tkEntity.addComponent(Rotating);
+    tkEntity.addComponent(Object3D, {object: torusKnot});
+
+    const itEntity = world.createEntity();
+    itEntity.addComponent(HandsInstructionText);
+    itEntity.addComponent(Object3D, {object: instructionText});
+
+    window.addEventListener('resize', onWindowResize);
+
+  }
+}
+
+
+
+    //this.hand1 = hand1
+    //this.hand2 = hand2
 
 
     const self = this
 
-    hand1.addEventListener( 'pinchstart', event => {
+ /*   hand1.addEventListener( 'pinchstart', event => {
       self.onPinchStartLeft.bind(self, event).call()
     } );
     hand1.addEventListener( 'pinchend', () => {
@@ -189,106 +489,106 @@ import monster from "../assets/monster.glb"
     } )
   }
 
-   onPinchStartLeft( event ) {
+  onPinchStartLeft( event ) {
 
-     const controller = event.target;
+    const controller = event.target;
 
-     if ( this.grabbing ) {
+    if ( this.grabbing ) {
 
-       const indexTip = controller.joints[ 'index-finger-tip' ];
-       const sphere = this.collideObject( indexTip );
+      const indexTip = controller.joints[ 'index-finger-tip' ];
+      const sphere = this.collideObject( indexTip );
 
-       if ( sphere ) {
+      if ( sphere ) {
 
-         const sphere2 = this.hand2.userData.selected;
-         console.log( 'sphere1', sphere, 'sphere2', sphere2 );
-         if ( sphere === sphere2 ) {
+        const sphere2 = this.hand2.userData.selected;
+        console.log( 'sphere1', sphere, 'sphere2', sphere2 );
+        if ( sphere === sphere2 ) {
 
-           this.scaling.active = true;
-           this.scaling.object = sphere;
-           this.scaling.initialScale = sphere.scale.x;
-           this.scaling.initialDistance = indexTip.position.distanceTo( this.hand2.joints[ 'index-finger-tip' ].position );
-           return;
+          this.scaling.active = true;
+          this.scaling.object = sphere;
+          this.scaling.initialScale = sphere.scale.x;
+          this.scaling.initialDistance = indexTip.position.distanceTo( this.hand2.joints[ 'index-finger-tip' ].position );
+          return;
 
-         }
+        }
 
-       }
+      }
 
-     }
+    }
 
-     const geometry = new THREE.BoxGeometry( this.SphereRadius, this.SphereRadius, this.SphereRadius );
-     const material = new THREE.MeshStandardMaterial( {
-       color: Math.random() * 0xffffff,
-       roughness: 1.0,
-       metalness: 0.0
-     } );
-     const spawn = new THREE.Mesh( geometry, material );
-     spawn.geometry.computeBoundingSphere();
+    const geometry = new THREE.BoxGeometry( this.SphereRadius, this.SphereRadius, this.SphereRadius );
+    const material = new THREE.MeshStandardMaterial( {
+      color: Math.random() * 0xffffff,
+      roughness: 1.0,
+      metalness: 0.0
+    } );
+    const spawn = new THREE.Mesh( geometry, material );
+    spawn.geometry.computeBoundingSphere();
 
-     const indexTip = controller.joints[ 'index-finger-tip' ];
-     spawn.position.copy( indexTip.position );
-     spawn.quaternion.copy( indexTip.quaternion );
+    const indexTip = controller.joints[ 'index-finger-tip' ];
+    spawn.position.copy( indexTip.position );
+    spawn.quaternion.copy( indexTip.quaternion );
 
-     this.spheres.push( spawn );
+    this.spheres.push( spawn );
 
-     this.scene.add( spawn );
+    this.scene.add( spawn );
 
-   }
+  }
 
-   onPinchStartRight( event ) {
+  onPinchStartRight( event ) {
 
-     const controller = event.target;
-     const indexTip = controller.joints[ 'index-finger-tip' ];
-     const object = this.collideObject( indexTip );
-     if ( object ) {
+    const controller = event.target;
+    const indexTip = controller.joints[ 'index-finger-tip' ];
+    const object = this.collideObject( indexTip );
+    if ( object ) {
 
-       this.grabbing = true;
-       indexTip.attach( object );
-       controller.userData.selected = object;
-       console.log( 'Selected', object );
+      this.grabbing = true;
+      indexTip.attach( object );
+      controller.userData.selected = object;
+      console.log( 'Selected', object );
 
-     }
+    }
 
-   }
+  }
 
-   onPinchEndRight( event ) {
+  onPinchEndRight( event ) {
 
-     const controller = event.target;
+    const controller = event.target;
 
-     if ( controller.userData.selected !== undefined ) {
+    if ( controller.userData.selected !== undefined ) {
 
-       const object = controller.userData.selected;
-       object.material.emissive.b = 0;
-       this.scene.attach( object );
+      const object = controller.userData.selected;
+      object.material.emissive.b = 0;
+      this.scene.attach( object );
 
-       controller.userData.selected = undefined;
-       this.grabbing = false;
+      controller.userData.selected = undefined;
+      this.grabbing = false;
 
-     }
+    }
 
-     this.scaling.active = false;
+    this.scaling.active = false;
 
-   }
+  }
 
-   collideObject( indexTip ) {
+  collideObject( indexTip ) {
 
-     for ( let i = 0; i < this.spheres.length; i ++ ) {
+    for ( let i = 0; i < this.spheres.length; i ++ ) {
 
-       const sphere = this.spheres[ i ];
-       const distance = indexTip.getWorldPosition( this.tmpVector1 ).distanceTo( sphere.getWorldPosition( this.tmpVector2 ) );
+      const sphere = this.spheres[ i ];
+      const distance = indexTip.getWorldPosition( this.tmpVector1 ).distanceTo( sphere.getWorldPosition( this.tmpVector2 ) );
 
-       if ( distance < sphere.geometry.boundingSphere.radius * sphere.scale.x ) {
+      if ( distance < sphere.geometry.boundingSphere.radius * sphere.scale.x ) {
 
-         return sphere;
+        return sphere;
 
-       }
+      }
 
-     }
+    }
 
-     return null;
+    return null;
 
-   }
-
+  }
+*/
   resize() {
     this.camera.aspect = window.innerWidth / window.innerHeight
     this.camera.updateProjectionMatrix()
@@ -296,24 +596,15 @@ import monster from "../assets/monster.glb"
   }
 
   render() {
-
-    if ( this.scaling.active ) {
-
-      const indexTip1Pos = this.hand1.joints[ 'index-finger-tip' ].position;
-      const indexTip2Pos = this.hand2.joints[ 'index-finger-tip' ].position;
-      const distance = indexTip1Pos.distanceTo( indexTip2Pos );
-      const newScale = this.scaling.initialScale + distance / this.scaling.initialDistance - 1;
-      this.scaling.object.scale.setScalar( newScale );
+    const delta = clock.getDelta();
+    const elapsedTime = clock.elapsedTime;
+    renderer.xr.updateCamera( camera );
+    world.execute( delta, elapsedTime );
+    renderer.render( scene, camera );
 
     }
 
-    /*if (this.fork) {
-      this.fork.rotateY(0.1 * xAxis)
-      this.fork.translateY(.02 * yAxis)
-    }*/
 
-    this.renderer.render(this.scene, this.camera)
-  }
-}
+
 
 export {App}
