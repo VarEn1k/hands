@@ -180,7 +180,7 @@ class App {
      grip2.add(new XRControllerModelFactory().createControllerModel(grip2))
      this.scene.add(grip2)
 
-    const consoleGeometry = new THREE.BoxGeometry(0.5, 0.12, 0.15);
+    const consoleGeometry = new THREE.BoxGeometry(0.7, 0.12, 0.15);
     const consoleMaterial = new THREE.MeshPhongMaterial({color: 0x595959});
     const consoleMesh = new THREE.Mesh(consoleGeometry, consoleMaterial);
     consoleMesh.position.set(0, 1, -0.3);
@@ -205,12 +205,20 @@ class App {
     consoleMesh.add(resetButton);
 
     const exitButton = this.makeButtonMesh(0.08, 0.1, 0.08, 0xff0000);
-    const exitButtonText = createText('exit', 0.03);
+    const exitButtonText = createText('delete', 0.03);
     exitButton.add(exitButtonText);
     exitButtonText.rotation.x = -Math.PI / 2;
     exitButtonText.position.set(0, 0.051, 0);
     exitButton.position.set(0.15, 0.04, 0);
     consoleMesh.add(exitButton);
+
+    const returnButton = this.makeButtonMesh(0.08, 0.1, 0.08, 0x33D424);
+    const returnButtonText = createText('return', 0.03);
+    returnButton.add(returnButtonText);
+    returnButtonText.rotation.x = -Math.PI / 2;
+    returnButtonText.position.set(0, 0.051, 0);
+    returnButton.position.set(0.25, 0.04, 0);
+    consoleMesh.add(returnButton);
 
     const tkGeometry = new THREE.TorusKnotGeometry(0.5, 0.2, 200, 32);
     const tkMaterial = new THREE.MeshPhongMaterial({color: 0xffffff});
@@ -223,10 +231,15 @@ class App {
     instructionText.position.set( 0, 1.6, - 0.6 );
     this.scene.add( instructionText );
 
-    const exitText = createText( 'Exiting session...', 0.04 );
+    const exitText = createText( 'Deleting object...', 0.04 );
     exitText.position.set( 0, 1.5, - 0.6 );
     exitText.visible = false;
     this.scene.add( exitText );
+
+    const returnText = createText( 'Returning object...', 0.04 );
+    returnText.position.set( 0, 1.5, - 0.6 );
+    returnText.visible = false;
+    this.scene.add( returnText );
 
 
     this.world
@@ -279,6 +292,7 @@ class App {
 
       torusKnot.material.color.setHex(0xffffff);
 
+      torusKnot.visible = true
     };
 
     rbEntity.addComponent(Button, {action: rbAction, surfaceY: 0.05, fullPressDistance: 0.02});
@@ -288,17 +302,34 @@ class App {
     ebEntity.addComponent(Object3D, {object: exitButton});
     const ebAction = function () {
 
-      exitText.visible = true;
-      setTimeout(function () {
 
-        exitText.visible = false;
-        renderer.xr.getSession().end();
-
-      }, 2000);
+        exitText.visible = true;
+        setTimeout(function () {
+            exitText.visible = false
+            torusKnot.visible = false
+            renderer.xr.getSession().end();
+        }, 2000)
 
     };
 
     ebEntity.addComponent(Button, {action: ebAction, surfaceY: 0.05, recoverySpeed: 0.2, fullPressDistance: 0.03});
+
+      const reEntity = this.world.createEntity();
+      reEntity.addComponent(Pressable);
+      reEntity.addComponent(Object3D, {object: returnButton});
+      const reAction = function () {
+
+          returnText.visible = true;
+          setTimeout(function () {
+              returnText.visible = false
+              torusKnot.visible = true
+              renderer.xr.getSession().end();
+          }, 2000)
+
+      };
+
+
+    reEntity.addComponent(Button, {action: reAction, surfaceY: 0.05, recoverySpeed: 0.2, fullPressDistance: 0.03});
 
     const tkEntity = this.world.createEntity();
     tkEntity.addComponent(Rotating);
