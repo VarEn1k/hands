@@ -1,5 +1,7 @@
 import {Component, System, TagComponent, Types} from "three/examples/jsm/libs/ecsy.module";
 import * as THREE from "three";
+import realeseSoundAudio from "../sounds/movie_1.mp3"
+import pressSoundAudio from "../sounds/roblox-oof-press.mp3"
 
 class Object3D extends Component { }
 
@@ -47,14 +49,14 @@ class ButtonSystem extends System {
 
             // load a sound and set it as the Audio object's buffer
             const audioLoader = new THREE.AudioLoader();
-            audioLoader.load( 'sounds/button-press.ogg', function ( buffer ) {
+            audioLoader.load( pressSoundAudio, function ( pressSoundAudio ) {
 
-                buttonPressSound.setBuffer( buffer );
+                buttonPressSound.setBuffer( pressSoundAudio );
 
             } );
-            audioLoader.load( 'sounds/button-release.ogg', function ( buffer ) {
+            audioLoader.load( realeseSoundAudio, function ( realeseSoundAudio ) {
 
-                buttonReleaseSound.setBuffer( buffer );
+                buttonReleaseSound.setBuffer( realeseSoundAudio );
 
             } );
             this.soundAdded = true;
