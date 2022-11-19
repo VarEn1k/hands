@@ -10,6 +10,8 @@ import {XRControllerModelFactory} from "three/examples/jsm/webxr/XRControllerMod
 import fork from "../assets/Fork.glb"
 import monster from "../assets/monster.glb"
 import { World, System, Component, TagComponent, Types } from "three/examples/jsm/libs/ecsy.module";
+import seat from "../assets/seat.glb"
+
 
 import scene from "three/examples/jsm/offscreen/scene";
 import {
@@ -120,6 +122,11 @@ class App {
       const scale = 0.2
       scene.scale.set(scale, scale, scale)
       self.monster = scene
+    })
+      this.loadAsset(seat, 0, .5, 0, scene => {
+      const scale = 0.2
+      scene.scale.set(scale, scale, scale)
+      self.seat = scene
     })
 
   }
