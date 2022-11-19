@@ -204,12 +204,20 @@ class App {
     resetButton.position.set(0.05, 0.04, 0);
     consoleMesh.add(resetButton);
 
-    const exitButton = this.makeButtonMesh(0.08, 0.1, 0.08, 0xff0000);
-    const exitButtonText = createText('delete', 0.03);
+    const deleteButton = this.makeButtonMesh(0.08, 0.1, 0.08, 0xff0000);
+    const deleteButtonText = createText('delete', 0.03);
+    deleteButton.add(deleteButtonText);
+    deleteButtonText.rotation.x = -Math.PI / 2;
+    deleteButtonText.position.set(0, 0.051, 0);
+    deleteButton.position.set(0.15, 0.04, 0);
+    consoleMesh.add(deleteButton);
+
+    const exitButton = this.makeButtonMesh(0.08, 0.1, 0.08, 0xB60DCA);
+    const exitButtonText = createText('Exit', 0.03);
     exitButton.add(exitButtonText);
     exitButtonText.rotation.x = -Math.PI / 2;
     exitButtonText.position.set(0, 0.051, 0);
-    exitButton.position.set(0.15, 0.04, 0);
+    exitButton.position.set(-0.25, 0.04, 0);
     consoleMesh.add(exitButton);
 
     const returnButton = this.makeButtonMesh(0.08, 0.1, 0.08, 0x33D424);
@@ -231,16 +239,20 @@ class App {
     instructionText.position.set( 0, 1.6, - 0.6 );
     this.scene.add( instructionText );
 
-    const exitText = createText( 'Deleting object...', 0.04 );
-    exitText.position.set( 0, 1.5, - 0.6 );
-    exitText.visible = false;
-    this.scene.add( exitText );
+    const deleteText = createText( 'Deleting object...', 0.04 );
+    deleteText.position.set( 0, 1.5, - 0.6 );
+    deleteText.visible = false;
+    this.scene.add( deleteText );
 
     const returnText = createText( 'Returning object...', 0.04 );
     returnText.position.set( 0, 1.5, - 0.6 );
     returnText.visible = false;
     this.scene.add( returnText );
 
+    const exitText = createText( 'Exit session...', 0.04 );
+    exitText.position.set( 0, 1.5, - 0.6 );
+    exitText.visible = false;
+    this.scene.add( exitText );
 
     this.world
         .registerComponent(Object3D)
@@ -297,15 +309,17 @@ class App {
 
     rbEntity.addComponent(Button, {action: rbAction, surfaceY: 0.05, fullPressDistance: 0.02});
 
+    const self = this
+
     const ebEntity = this.world.createEntity();
     ebEntity.addComponent(Pressable);
-    ebEntity.addComponent(Object3D, {object: exitButton});
+    ebEntity.addComponent(Object3D, {object: deleteButton});
     const ebAction = function () {
 
 
-        exitText.visible = true;
+        deleteText.visible = true;
         setTimeout(function () {
-            exitText.visible = false
+            deleteText.visible = false
             torusKnot.visible = false
             renderer.xr.getSession().end();
         }, 2000)
@@ -330,6 +344,22 @@ class App {
 
 
     reEntity.addComponent(Button, {action: reAction, surfaceY: 0.05, recoverySpeed: 0.2, fullPressDistance: 0.03});
+
+      const exEntity = this.world.createEntity();
+      exEntity.addComponent( Pressable );
+      exEntity.addComponent( Object3D, { object: exitButton } );
+      const exAction = function () {
+          exitText.visible = true;
+          setTimeout( function () {
+
+              exitText.visible = false;
+              self.renderer.xr.getSession().end();
+
+          }, 2000 );
+
+      };
+
+      exEntity.addComponent(Button, {action: exAction, surfaceY: 0.05, recoverySpeed: 0.2, fullPressDistance: 0.03});
 
     const tkEntity = this.world.createEntity();
     tkEntity.addComponent(Rotating);
