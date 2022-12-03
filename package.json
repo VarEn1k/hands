@@ -21,7 +21,7 @@
     "webpack-dev-server": "^4.7.3"
   },
   "dependencies": {
-    "@webxr-input-profiles/assets": "^1.0.9",
+    "@webxr-input-profiles/assets": "^1.0.12",
     "browser-util-inspect": "^0.2.0",
     "three": "0.137.5"
   }

@@ -9,8 +9,8 @@ import monster from "../assets/monster.glb"
 import { World, System, Component, TagComponent, Types } from "three/examples/jsm/libs/ecsy.module";
 // assets
 import seat from "../assets/seat.glb"
-// import knight from "../assets/knight.glb"
-import knight from "../assets/animations/knight.glb"
+import knight from "../assets/test2.glb"
+// import knight from "../assets/animations/knight.glb"
 import blimp from "../assets/Blimp.glb"
 import chair from "../assets/medieval-chair.glb"
 import {XRHandModelFactory} from "three/examples/jsm/webxr/XRHandModelFactory";
@@ -169,8 +169,9 @@ class App {
             })
 
             self.mixer = new THREE.AnimationMixer(self.knight)
-            // self.action = "Walk";
+            // self.action = "Dance";
             self.action = "Idle";
+            // self.action = "walk";
         })
 
     }
@@ -218,7 +219,7 @@ class App {
             }
 
             this.actionName = name;
-            if (this.curAction) this.curAction.crossFadeTo(action, 0.5);
+            if (this.curAction) this.curAction.crossFadeTo(action, 4);
 
             action.enabled = true;
             action.play();
