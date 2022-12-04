@@ -9,10 +9,11 @@ import monster from "../assets/monster.glb"
 import { World, System, Component, TagComponent, Types } from "three/examples/jsm/libs/ecsy.module";
 // assets
 import seat from "../assets/seat.glb"
-import knight from "../assets/test2.glb"
 // import knight from "../assets/animations/knight.glb"
+import knight from "../assets/knight.glb"
+// import knight from "../assets/test2.glb"
 import blimp from "../assets/Blimp.glb"
-import chair from "../assets/medieval-chair.glb"
+// import chair from "../assets/medieval-chair.glb"
 import {XRHandModelFactory} from "three/examples/jsm/webxr/XRHandModelFactory";
 
 
@@ -153,11 +154,12 @@ class App {
         this.loadAsset(knight, gltf => {
             const gltfScene = gltf.scene.children[0]
             // const gltfScene = gltf.scene
-            gltfScene.position.set(0, 0, -1)
+            gltfScene.position.set(0, 0, -1.5)
 
             self.knight = gltfScene
             const scale = 0.01;
             self.knight.scale.set(scale, scale, scale);
+            // self.knight.position.set
 
             self.scene.add(gltfScene)
 
@@ -169,11 +171,10 @@ class App {
             })
 
             self.mixer = new THREE.AnimationMixer(self.knight)
-            // self.action = "Dance";
-            self.action = "Idle";
-            // self.action = "walk";
+            self.action = "Dance";
+            // self.action = "Idle";
+            // self.action = "Walk";
         })
-
     }
 
     loadAsset(gltfFilename,sceneHandler) {
