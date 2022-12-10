@@ -1,9 +1,11 @@
-import * as THREE from 'three'
-import {VRButton} from "three/examples/jsm/webxr/VRButton"
-import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader";
-import {DRACOLoader} from "three/examples/jsm/loaders/DRACOLoader"
 
-import {XRControllerModelFactory} from "three/examples/jsm/webxr/XRControllerModelFactory";
+
+import * as THREE from '../libs/three124/three.module.js'
+import {VRButton} from "../libs/three124/jsm/VRButton.js"
+import {GLTFLoader} from "../libs/three124/jsm/GLTFLoader";
+import {DRACOLoader} from "../libs/three124/jsm/DRACOLoader"
+
+import {XRControllerModelFactory} from "../libs/three124/jsm/XRControllerModelFactory";
 import fork from "../assets/Fork.glb"
 import monster from "../assets/monster.glb"
 import { World, System, Component, TagComponent, Types } from "three/examples/jsm/libs/ecsy.module";
@@ -152,7 +154,7 @@ class App {
         })
 
         this.loadAsset(knight, gltf => {
-            const gltfScene = gltf.scene.children[0]
+            const gltfScene = gltf.scene.children[3]
             // const gltfScene = gltf.scene
             gltfScene.position.set(0, 0, -1.5)
 
@@ -171,9 +173,9 @@ class App {
             })
 
             self.mixer = new THREE.AnimationMixer(self.knight)
-            self.action = "Dance";
+            // self.action = "Dance";
             // self.action = "Idle";
-            // self.action = "Walk";
+            self.action = "walk";
         })
     }
 
@@ -214,7 +216,7 @@ class App {
         if (clip !== undefined) {
             const action = this.mixer.clipAction(clip);
 
-            if (name === 'Stand_up') {
+            if (name === 'kick') {
                 action.loop = THREE.LoopOnce;
                 action.clampWhenFinished = true;
             }
@@ -586,19 +588,19 @@ class App {
         const self = this;
 
         this.grip.addEventListener('selectstart', () => {
-            self.action = 'Jump'
+            self.action = 'jump'
         })
 
         this.grip.addEventListener('squeezestart', () => {
-            self.action = 'Walk'
+            self.action = 'walk'
         })
 
         this.grip2.addEventListener('selectstart', () => {
-            self.action = 'Dance'
+            self.action = 'dance'
         })
 
         this.grip2.addEventListener('squeezestart', () => {
-            self.action = 'Stand_up'
+            self.action = 'kick'
         })
 
 
@@ -622,7 +624,7 @@ class App {
     render() {
         const delta = this.clock.getDelta();
         const elapsedTime = this.clock.elapsedTime;
-        this.renderer.xr.updateCamera(this.camera);
+        // this.renderer.xr.updateCamera(this.camera);
         this.world.execute(delta, elapsedTime);
         this.renderer.render(this.scene, this.camera);
 
